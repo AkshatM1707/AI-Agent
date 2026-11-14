@@ -1,22 +1,26 @@
+
 import "dotenv/config";
 import OpenAI from "openai";
 
 import {
     Agent,
     run,
+    tool,
     setDefaultOpenAIClient,
     setOpenAIAPI,
     setTracingDisabled,
 } from "@openai/agents";
 
-async function main(query = "") {
+import { z } from "zod";
+
+async function main(query) {
     const groqApiKey = process.env.GROQ_API_KEY;
 
     if (!groqApiKey) {
         throw new Error("GROQ_API_KEY is missing from .env");
     }
 
-    // Configure Groq as the LLM provider
+    // 1. Configure Groq client
     const groqClient = new OpenAI({
         apiKey: groqApiKey,
         baseURL: "https://api.groq.com/openai/v1",
@@ -26,19 +30,42 @@ async function main(query = "") {
     setOpenAIAPI("chat_completions");
     setTracingDisabled(true);
 
-    const agent = new Agent({
-        name: "Weather Agent",
-        instructions: `
-        You are an expert weather agent that helps user to tell weather report.
-        `,
+    // 2. Define the weather tool
+    const getWeather = tool({
+        name: "get_weather",
+        description: "Get the weather for a given city.",
+        parameters: z.object({
+            city: z.string(),
+        }),
+        async execute({ city }) {
+            console.log(`Fetching weather for ${city}...`);
+
+            // Mock weather response for now
+            return `The weather in ${city} is sunny. Temperature is 28°C.`;
+        },
     });
 
-    const result = await run(agent, query);
-    console.log(`Result:`, result.finalOutput);
+    // 3. Create the agent
+    const weatherAgent = new Agent({
+        name: "Weather Agent",
+        instructions: `
+      You are a helpful weather assistant.
+      When a user asks about weather, use the get_weather tool.
+      Provide a clear and concise response.
+    `,
+        tools: [getWeather],
+    });
+
+    // 4. Run the agent
+    const result = await run(weatherAgent, query);
+
+    // 5. Display the result
+    console.log("\nAgent Response:");
+    console.log(result.finalOutput);
 }
 
-main(`What is the weather of Greater Noida ?`).catch((error) => {
-    console.error("Agent execution failed:");
-    console.error(error);
-    process.exitCode = 1;
-});
+main("What is the weather in Greater Noida?")
+    .catch((error) => {
+        console.error("Agent execution failed:", error);
+        process.exitCode = 1;
+    });
