@@ -1,7 +1,7 @@
 
 import "dotenv/config";
 import OpenAI from "openai";
-
+import axios from "axios";
 import {
     Agent,
     run,
@@ -31,19 +31,38 @@ async function main(query) {
     setTracingDisabled(true);
 
     // 2. Define the weather tool
-    const getWeather = tool({
-        name: "get_weather",
-        description: "Get the weather for a given city.",
-        parameters: z.object({
-            city: z.string(),
-        }),
-        async execute({ city }) {
-            console.log(`Fetching weather for ${city}...`);
+    
+const getWeather = tool({
+    name: "get_weather",
+    description: "Get the weather for a given city.",
+    parameters: z.object({
+        city: z.string(),
+    }),
 
-            // Mock weather response for now
-            return `The weather in ${city} is sunny. Temperature is 28°C.`;
-        },
-    });
+    async execute({ city }) {
+        console.log(`Fetching weather for ${city}...`);
+
+        try {
+            const url = `https://wttr.in/${encodeURIComponent(city)}?format=%C+%t`;
+
+            const response = await axios.get(url, {
+                timeout: 10000,
+            });
+
+            const weather = response.data.trim();
+
+            console.log(weather);
+
+            return `The current weather in ${city} is ${weather}.`;
+
+        } catch (error) {
+            console.error("Weather API error:", error.message);
+
+            return `Unable to fetch weather information for ${city}.`;
+        }
+    },
+});
+
 
     // 3. Create the agent
     const weatherAgent = new Agent({
@@ -64,7 +83,7 @@ async function main(query) {
     console.log(result.finalOutput);
 }
 
-main("What is the weather in Greater Noida?")
+main("What is the weather in New York City, Goa and Barcelona?")
     .catch((error) => {
         console.error("Agent execution failed:", error);
         process.exitCode = 1;
